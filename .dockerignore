@@ -1,0 +1,12 @@
+# Backend dependencies will be installed in Docker
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+**/venv/
+**/.venv/
+
+# Frontend dependencies will be installed in Docker
+**/node_modules/
+**/.npm
