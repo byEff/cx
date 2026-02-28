@@ -79,7 +79,7 @@ cx/
 
 1. **克隆项目**
 ```bash
-cd /Users/zhanggang/code/ai/cx
+cd <your-project-directory>
 ```
 
 2. **配置环境变量**
@@ -113,7 +113,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # 配置环境变量
-export DATABASE_URL=postgresql://a_stock:a_stock_2024@localhost:5432/a_stock_db
+export DATABASE_URL=postgresql://<username>:<password>@localhost:5432/a_stock_db
 export REDIS_URL=redis://localhost:6379/0
 
 # 启动服务
@@ -183,7 +183,7 @@ GET  /api/v1/market/hot-sectors       # 获取热门板块
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| DATABASE_URL | PostgreSQL连接URL | postgresql://a_stock:a_stock_2024@postgres:5432/a_stock_db |
+| DATABASE_URL | PostgreSQL连接URL | postgresql://\<username\>:\<password\>@postgres:5432/a_stock_db |
 | REDIS_URL | Redis连接URL | redis://redis:6379/0 |
 | SECRET_KEY | 应用密钥 | - |
 | DATA_SOURCE | 数据源类型 | eastmoney |

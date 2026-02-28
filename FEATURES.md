@@ -375,7 +375,7 @@ FastAPI后端路由
 
 ## 📞 技术支持
 
-- **项目路径**: `/Users/zhanggang/code/ai/cx`
+- **项目路径**: `<your-project-path>`
 - **文档路径**: 
   - README.md - 项目说明
   - DEVELOPMENT.md - 开发指南

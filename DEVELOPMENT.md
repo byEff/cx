@@ -29,9 +29,9 @@ venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 
 # 配置环境变量
-export DATABASE_URL=postgresql://a_stock:a_stock_2024@localhost:5432/a_stock_db
+export DATABASE_URL=postgresql://<username>:<password>@localhost:5432/a_stock_db
 export REDIS_URL=redis://localhost:6379/0
-export SECRET_KEY=your-secret-key
+export SECRET_KEY=<your-secret-key>
 
 # 启动开发服务器
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
