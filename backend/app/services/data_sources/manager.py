@@ -35,8 +35,8 @@ class DataSourceManager:
         "ifind_http": IFindHttpDataSource,
     }
 
-    # 默认数据源优先级（涨跌榜使用 AkShare 获取真实全市场数据）
-    DEFAULT_PRIORITY = ["akshare", "tencent", "eastmoney", "sina", "ifind_http"]
+    # 默认数据源优先级（东方财富数据最准确，作为首选）
+    DEFAULT_PRIORITY = ["eastmoney", "tencent", "akshare", "sina", "ifind_http"]
 
     def __init__(self, primary_source: str = None, fallback_sources: List[str] = None):
         self.source_priority = fallback_sources or self.DEFAULT_PRIORITY

@@ -29,19 +29,28 @@ class TencentDataSource(BaseDataSource):
         return "sz"
 
     async def get_quote(self, code: str) -> Optional[StockQuoteResponse]:
-        # 特殊处理指数代码
-        if code in ["000001", "399001", "399006"]:
-            # 使用腾讯的指数接口
+        # 特殊处理指数代码（上证指数 sh000001，不是股票 000001）
+        # 注意：000001 作为股票代码是平安银行（sz000001），作为指数代码是上证指数（sh000001）
+        # 为了明确区分，指数应该使用带前缀的代码，如 "SH000001" 或 "SZ399001"
+        # 这里只处理明确的指数请求
+        if code.upper() in ["SH000001", "SZ000001", "SZ399001", "SZ399006"]:
+            code_upper = code.upper()
+            if code_upper.startswith("SH"):
+                prefix = "sh"
+                index_code = code_upper[2:]
+            else:
+                prefix = "sz"
+                index_code = code_upper[2:]
+            
             try:
-                prefix = "sh" if code.startswith("0") else "sz"
-                url = f"https://qt.gtimg.cn/q={prefix}{code}"
+                url = f"https://qt.gtimg.cn/q={prefix}{index_code}"
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     response = await client.get(url, headers=self.headers)
                     text = response.content.decode("gb18030")
 
                     import re
 
-                    match = re.search(r"v_" + prefix + code + r"=\"([^\"]+)\"", text)
+                    match = re.search(r"v_" + prefix + index_code + r"=\"([^\"]+)\"", text)
                     if match:
                         parts = match.group(1).split("~")
 
@@ -69,11 +78,11 @@ class TencentDataSource(BaseDataSource):
                             "399001": "深证成指",
                             "399006": "创业板指",
                         }
-                        stock_name = index_names.get(code, code)
+                        stock_name = index_names.get(index_code, index_code)
 
                         return StockQuoteResponse(
                             id=0,
-                            stock_code=code,
+                            stock_code=index_code,
                             stock_name=stock_name,
                             price=Decimal(str(price)),
                             open_price=Decimal(str(open_price)),
