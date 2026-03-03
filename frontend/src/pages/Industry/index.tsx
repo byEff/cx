@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Card, Table, Select, Space, Tag, Input, Button } from 'antd'
 import { RiseOutlined, FallOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
-import type { SorterResult } from 'antd/es/table/interface'
 
 interface Industry {
   code: string
@@ -62,9 +61,7 @@ function IndustryPage() {
   }
 
   const handleTableChange = (
-    pagination: TablePaginationConfig,
-    filters: any,
-    sorter: any
+    pagination: TablePaginationConfig
   ) => {
     setPagination(prev => ({
       ...prev,
