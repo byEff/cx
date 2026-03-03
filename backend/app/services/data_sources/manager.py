@@ -15,7 +15,9 @@ from .tonghuashun import TongHuaShunDataSource
 from .tongdaxin import TongDaXinDataSource
 from .tencent import TencentDataSource
 from .akshare import AkShareDataSource
+from .sina import SinaDataSource
 from .tushare import TushareDataSource
+from .ifind_http import IFindHttpDataSource
 
 
 class DataSourceManager:
@@ -26,13 +28,15 @@ class DataSourceManager:
         "akshare": AkShareDataSource,
         "tencent": TencentDataSource,
         "eastmoney": EastMoneyDataSource,
+        "sina": SinaDataSource,
         "tonghuashun": TongHuaShunDataSource,
         "tongdaxin": TongDaXinDataSource,
         "tushare": TushareDataSource,
+        "ifind_http": IFindHttpDataSource,
     }
 
     # 默认数据源优先级（涨跌榜使用 AkShare 获取真实全市场数据）
-    DEFAULT_PRIORITY = ["akshare", "tencent", "eastmoney", "tongdaxin"]
+    DEFAULT_PRIORITY = ["akshare", "tencent", "eastmoney", "sina", "ifind_http"]
 
     def __init__(self, primary_source: str = None, fallback_sources: List[str] = None):
         self.source_priority = fallback_sources or self.DEFAULT_PRIORITY
@@ -245,7 +249,9 @@ class DataSourceManager:
             "tencent": "腾讯财经",
             "akshare": "AkShare",
             "eastmoney": "东方财富",
-            "tonghuashun": "同花顺",
+            "sina": "新浪财经",
+            "tonghuashun": "同花顺 (旧版 API)",
+            "ifind_http": "同花顺 iFinD HTTP API",
             "tongdaxin": "通达信",
             "tushare": "Tushare",
         }
