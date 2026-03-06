@@ -353,39 +353,24 @@ class TencentDataSource(BaseDataSource):
         return await self.search("")
 
     async def get_index(self, code: str) -> Optional[StockSearchResult]:
-        # Return real index data directly
-        if code == "000001":
-            # 上证指数
-            quote = await self.get_quote("000001")
+        """获取指数 - 使用明确的市场前缀区分指数和股票"""
+        # 上证指数需要使用 SH 前缀，避免与平安银行 (sz000001) 混淆
+        index_map = {
+            "000001": ("SH000001", "上证指数", "SH"),  # 上证指数
+            "399001": ("SZ399001", "深证成指", "SZ"),  # 深证成指
+            "399006": ("SZ399006", "创业板指", "SZ"),  # 创业板指
+        }
+
+        if code in index_map:
+            full_code, name, market = index_map[code]
+            quote = await self.get_quote(full_code)
             if quote:
                 return StockSearchResult(
                     code=code,
-                    name="上证指数",
+                    name=name,
                     price=quote.price,
                     change_percent=quote.change_percent,
-                    market="SH",
-                )
-        elif code == "399001":
-            # 深证成指
-            quote = await self.get_quote("399001")
-            if quote:
-                return StockSearchResult(
-                    code=code,
-                    name="深证成指",
-                    price=quote.price,
-                    change_percent=quote.change_percent,
-                    market="SZ",
-                )
-        elif code == "399006":
-            # 创业板指
-            quote = await self.get_quote("399006")
-            if quote:
-                return StockSearchResult(
-                    code=code,
-                    name="创业板指",
-                    price=quote.price,
-                    change_percent=quote.change_percent,
-                    market="SZ",
+                    market=market,
                 )
         return None
 

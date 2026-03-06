@@ -205,7 +205,7 @@ class EastMoneyDataSource(BaseDataSource):
             return []
 
     async def get_index(self, code: str) -> Optional[StockSearchResult]:
-        """获取指数"""
+        """获取指数 - 上证指数需要特殊处理市场代码"""
         index_names = {
             "000001": "上证指数",
             "399001": "深证成指",
@@ -214,14 +214,41 @@ class EastMoneyDataSource(BaseDataSource):
             "000905": "中证500",
         }
 
-        quote = await self.get_quote(code)
-        if quote:
-            return StockSearchResult(
-                code=code,
-                name=index_names.get(code, code),
-                price=quote.price,
-                change_percent=quote.change_percent,
-            )
+        if code not in index_names:
+            return None
+
+        try:
+            # 上证指数需要使用上海市场的 secid (1.000001)
+            # 避免与平安银行 (0.000001) 混淆
+            if code == "000001":
+                secid = "1.000001"  # 上海市场
+            elif code == "000300" or code == "000905":
+                secid = f"1.{code}"  # 上海市场指数
+            else:
+                secid = f"0.{code}"  # 深圳市场指数
+
+            url = f"{self.base_url}/stock/get"
+            params = {
+                "secid": secid,
+                "fields": "f43,f44,f45,f46,f47,f48,f50,f51,f52,f58,f60,f170,f171",
+            }
+
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(url, params=params, headers=self.headers)
+                data = response.json()
+
+                if data.get("data"):
+                    d = data["data"]
+                    return StockSearchResult(
+                        code=code,
+                        name=index_names[code],
+                        price=Decimal(str(d.get("f43", 0) / 100)),
+                        change_percent=Decimal(str(d.get("f170", 0) / 100)),
+                        market="SH" if code.startswith(("000", "0003")) else "SZ",
+                    )
+        except Exception as e:
+            logger.error(f"东方财富获取指数失败 {code}: {e}")
+
         return None
 
     async def get_top_gainers(self, limit: int = 10) -> List[StockSearchResult]:
