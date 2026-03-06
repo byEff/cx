@@ -178,10 +178,10 @@ def main():
     else:
         # 获取整体市场概况
         industries = get_industry_list()
-       涨跌榜 = get_top_gainers_losers()
+        top_stocks = get_top_gainers_losers()
         result = {
             "market_overview": industries,
-            "top_stocks": 涨跌榜
+            "top_stocks": top_stocks
         }
     
     print(json.dumps(result, ensure_ascii=False, indent=2))
