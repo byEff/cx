@@ -4,8 +4,14 @@ from sqlalchemy import select
 from typing import List
 from app.database import get_db
 from app.models.models import MarketNews
-from app.models.schemas import MarketNewsResponse, StockSearchResult
+from app.models.schemas import (
+    MarketNewsResponse,
+    StockSearchResult,
+    UpDownDistribution,
+    LimitUpStats,
+)
 from app.services.stock_data import StockDataService
+from app.services.data_sources.market_sentiment import get_market_sentiment_source
 from loguru import logger
 
 router = APIRouter()
@@ -79,4 +85,44 @@ async def get_hot_sectors(db: AsyncSession = Depends(get_db)):
         return sectors
     except Exception as e:
         logger.error(f"Error getting hot sectors: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== 市场情绪接口 ====================
+
+@router.get("/up-down-distribution", response_model=UpDownDistribution)
+async def get_up_down_distribution():
+    """获取涨跌家数分布"""
+    try:
+        sentiment_source = get_market_sentiment_source()
+        data = await sentiment_source.get_up_down_distribution()
+        return UpDownDistribution(**data)
+    except Exception as e:
+        logger.error(f"Error getting up-down distribution: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/limit-up-stats", response_model=LimitUpStats)
+async def get_limit_up_stats():
+    """获取涨停板统计"""
+    try:
+        sentiment_source = get_market_sentiment_source()
+        data = await sentiment_source.get_limit_up_stats()
+        return LimitUpStats(**data)
+    except Exception as e:
+        logger.error(f"Error getting limit-up stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/hot-stocks", response_model=List[StockSearchResult])
+async def get_hot_stocks(
+    limit: int = Query(20, ge=1, le=50)
+):
+    """获取热门股票榜单"""
+    try:
+        sentiment_source = get_market_sentiment_source()
+        stocks = await sentiment_source.get_hot_stocks(limit)
+        return stocks
+    except Exception as e:
+        logger.error(f"Error getting hot stocks: {e}")
         raise HTTPException(status_code=500, detail=str(e))

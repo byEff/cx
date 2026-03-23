@@ -38,7 +38,11 @@ class DataSourceManager:
     # 默认数据源优先级（东方财富数据最准确，作为首选）
     DEFAULT_PRIORITY = ["eastmoney", "tencent", "akshare", "sina", "ifind_http"]
 
-    def __init__(self, primary_source: str = None, fallback_sources: List[str] = None):
+    def __init__(
+        self,
+        primary_source: Optional[str] = None,
+        fallback_sources: Optional[List[str]] = None,
+    ):
         self.source_priority = fallback_sources or self.DEFAULT_PRIORITY
         self.source_instances: Dict[str, BaseDataSource] = {}
         self.source_status: Dict[str, dict] = {}

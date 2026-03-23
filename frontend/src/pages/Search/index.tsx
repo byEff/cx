@@ -79,14 +79,20 @@ function SearchPage() {
       dataIndex: 'code',
       key: 'code',
       width: 100,
-      render: (code: string) => <a onClick={() => navigate(`/stock/${code}`)}>{code}</a>,
+      render: (code: string) => (
+        <a onClick={() => navigate(`/stock/${code}`)} style={{ color: '#58a6ff' }}>
+          {code}
+        </a>
+      ),
     },
     {
       title: '名称',
       dataIndex: 'name',
       key: 'name',
       width: 120,
-      render: (name: string, record: Stock) => <a onClick={() => navigate(`/stock/${record.code}`)}>{name}</a>,
+      render: (name: string, record: Stock) => (
+        <a onClick={() => navigate(`/stock/${record.code}`)}>{name}</a>
+      ),
     },
     {
       title: '价格',
@@ -128,7 +134,7 @@ function SearchPage() {
     {
       title: '操作',
       key: 'action',
-      width: 180,
+      width: 150,
       render: (_: any, record: Stock) => (
         <Button.Group>
           <Button type="link" onClick={() => navigate(`/stock/${record.code}`)}>
@@ -144,7 +150,9 @@ function SearchPage() {
 
   return (
     <div>
-      <Card style={{ marginBottom: 24 }}>
+      <h1 className="page-title">搜索筛选</h1>
+
+      <Card style={{ marginBottom: 24 }} className="hover-card">
         <Row gutter={[16, 16]}>
           <Col span={24}>
             <Search
@@ -160,7 +168,7 @@ function SearchPage() {
         </Row>
       </Card>
 
-      <Card title="筛选条件" style={{ marginBottom: 24 }}>
+      <Card title="筛选条件" style={{ marginBottom: 24 }} className="hover-card">
         <Row gutter={[16, 16]} align="middle">
           <Col span={6}>
             <Select
@@ -201,7 +209,7 @@ function SearchPage() {
         </Row>
       </Card>
 
-      <Card title="搜索结果">
+      <Card title={`搜索结果 (${stocks.length})`} className="hover-card">
         <Table
           dataSource={stocks}
           columns={columns}
@@ -212,6 +220,10 @@ function SearchPage() {
             showSizeChanger: true,
             showTotal: (total) => `共 ${total} 条`,
           }}
+          onRow={(record) => ({
+            onClick: () => navigate(`/stock/${record.code}`),
+            style: { cursor: 'pointer' },
+          })}
         />
       </Card>
     </div>

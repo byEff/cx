@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Card, Row, Col, Statistic, Spin, message, Select, Space } from 'antd'
+import { Card, Row, Col, Spin, message, Select, Space } from 'antd'
 import { RiseOutlined, FallOutlined } from '@ant-design/icons'
 import type { StockQuote, KlineData } from '@/types'
 import { stockApi } from '@/services/api'
@@ -56,91 +56,95 @@ function StockDetail() {
   }
 
   if (!quote) {
-    return <div>股票不存在</div>
+    return <div style={{ color: '#8b949e' }}>股票不存在</div>
   }
 
   const displayTitle = stockName || code 
     ? `${code} - ${stockName || '股票详情'}` 
     : '股票详情'
 
+  const isUp = quote.changePercent && quote.changePercent > 0
+
   return (
     <div>
-      <Card title={displayTitle} style={{ marginBottom: 24 }}>
-        <Row gutter={[16, 16]}>
+      <h1 className="page-title">{displayTitle}</h1>
+
+      {/* 行情数据 */}
+      <Card style={{ marginBottom: 24 }} className="hover-card">
+        <Row gutter={[24, 24]}>
           <Col span={6}>
-            <Statistic
-              title="当前价格"
-              value={quote.price}
-              precision={2}
-              valueStyle={{
-                color: quote.changePercent && quote.changePercent > 0 ? '#f5222d' : '#52c41a'
-              }}
-            />
+            <div className="stat-card">
+              <div className="stat-label">当前价格</div>
+              <div className="stat-value" style={{ color: isUp ? '#ef4444' : '#22c55e' }}>
+                {quote.price?.toFixed(2) || '-'}
+              </div>
+            </div>
           </Col>
           <Col span={6}>
-            <Statistic
-              title="涨跌幅"
-              value={quote.changePercent || 0}
-              precision={2}
-              suffix="%"
-              valueStyle={{
-                color: quote.changePercent && quote.changePercent > 0 ? '#f5222d' : '#52c41a'
-              }}
-              prefix={quote.changePercent && quote.changePercent > 0 ? <RiseOutlined /> : <FallOutlined />}
-            />
+            <div className="stat-card">
+              <div className="stat-label">涨跌幅</div>
+              <div className="stat-value" style={{ color: isUp ? '#ef4444' : '#22c55e' }}>
+                {isUp ? <RiseOutlined style={{ marginRight: 8 }} /> : <FallOutlined style={{ marginRight: 8 }} />}
+                {quote.changePercent ? `${isUp ? '+' : ''}${quote.changePercent.toFixed(2)}%` : '-'}
+              </div>
+            </div>
           </Col>
           <Col span={6}>
-            <Statistic
-              title="成交量"
-              value={quote.volume || 0}
-              suffix="手"
-            />
+            <div className="stat-card">
+              <div className="stat-label">成交量</div>
+              <div className="stat-value">{quote.volume ? `${(quote.volume / 10000).toFixed(2)}万手` : '-'}</div>
+            </div>
           </Col>
           <Col span={6}>
-            <Statistic
-              title="成交额"
-              value={quote.turnover || 0}
-              precision={2}
-              suffix="元"
-            />
+            <div className="stat-card">
+              <div className="stat-label">成交额</div>
+              <div className="stat-value">
+                {quote.turnover ? `${(Number(quote.turnover) / 100000000).toFixed(2)}亿` : '-'}
+              </div>
+            </div>
           </Col>
         </Row>
 
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Row gutter={[24, 24]} style={{ marginTop: 16 }}>
           <Col span={6}>
-            <Statistic
-              title="开盘价"
-              value={quote.openPrice || 0}
-              precision={2}
-            />
+            <div className="stat-card" style={{ background: 'transparent', padding: 12 }}>
+              <div className="stat-label">开盘价</div>
+              <div style={{ fontSize: 18, fontWeight: 600, color: '#f0f6fc' }}>
+                {quote.openPrice?.toFixed(2) || '-'}
+              </div>
+            </div>
           </Col>
           <Col span={6}>
-            <Statistic
-              title="最高价"
-              value={quote.highPrice || 0}
-              precision={2}
-            />
+            <div className="stat-card" style={{ background: 'transparent', padding: 12 }}>
+              <div className="stat-label">最高价</div>
+              <div style={{ fontSize: 18, fontWeight: 600, color: '#ef4444' }}>
+                {quote.highPrice?.toFixed(2) || '-'}
+              </div>
+            </div>
           </Col>
           <Col span={6}>
-            <Statistic
-              title="最低价"
-              value={quote.lowPrice || 0}
-              precision={2}
-            />
+            <div className="stat-card" style={{ background: 'transparent', padding: 12 }}>
+              <div className="stat-label">最低价</div>
+              <div style={{ fontSize: 18, fontWeight: 600, color: '#22c55e' }}>
+                {quote.lowPrice?.toFixed(2) || '-'}
+              </div>
+            </div>
           </Col>
           <Col span={6}>
-            <Statistic
-              title="昨收价"
-              value={quote.preClose || 0}
-              precision={2}
-            />
+            <div className="stat-card" style={{ background: 'transparent', padding: 12 }}>
+              <div className="stat-label">昨收价</div>
+              <div style={{ fontSize: 18, fontWeight: 600, color: '#f0f6fc' }}>
+                {quote.preClose?.toFixed(2) || '-'}
+              </div>
+            </div>
           </Col>
         </Row>
       </Card>
 
+      {/* K线图 */}
       <Card 
-        title="K线走势" 
-        style={{ marginBottom: 24 }}
+        title="K线走势"
+        className="hover-card"
         extra={
           <Space>
             <Select value={period} onChange={handlePeriodChange} style={{ width: 100 }}>
@@ -152,7 +156,7 @@ function StockDetail() {
         }
       >
         {klineData.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
+          <div style={{ textAlign: 'center', padding: 40, color: '#8b949e' }}>
             暂无K线数据
           </div>
         ) : (

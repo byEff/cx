@@ -7,7 +7,7 @@
 import httpx
 from typing import List, Optional
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timedelta
 from loguru import logger
 from app.models.schemas import StockQuoteResponse, KlineData, StockSearchResult
 from .base import BaseDataSource
@@ -17,6 +17,8 @@ from app.config import settings
 class IFindHttpDataSource(BaseDataSource):
     """同花顺 iFinD HTTP API 数据源"""
 
+    TOKEN_EXPIRE_SECONDS = 7200  # 2小时
+
     def __init__(self):
         # 官方示例中的 base URL
         self.base_url = settings.IFIND_API_URL or "https://quantapi.51ifind.com/api/v1"
@@ -24,14 +26,20 @@ class IFindHttpDataSource(BaseDataSource):
         self.password = settings.IFIND_PASSWORD
         self.refresh_token = settings.IFIND_REFRESH_TOKEN
         self.access_token: Optional[str] = None
+        self.token_expire_time: Optional[datetime] = None
         self.timeout = httpx.Timeout(30.0, connect=15.0)
 
         logger.info(f"同花顺 iFinD HTTP API 初始化 (账号：{self.account[:4]}****)")
 
     async def _get_access_token(self) -> Optional[str]:
-        """获取访问令牌"""
-        if self.access_token:
-            return self.access_token
+        """获取访问令牌 - 带自动刷新"""
+        # 检查现有 Token 是否有效
+        if self.access_token and self.token_expire_time:
+            if datetime.now() < self.token_expire_time:
+                return self.access_token
+            else:
+                logger.info("iFinD Token 已过期，重新获取")
+                self.access_token = None
 
         try:
             url = f"{self.base_url}/get_access_token"
@@ -47,10 +55,13 @@ class IFindHttpDataSource(BaseDataSource):
 
                     if data.get("data") and data["data"].get("access_token"):
                         self.access_token = data["data"]["access_token"]
+                        self.token_expire_time = datetime.now() + timedelta(
+                            seconds=self.TOKEN_EXPIRE_SECONDS
+                        )
                         logger.info("通过 refresh_token 获取 access_token 成功")
                         return self.access_token
 
-            # 使用账号密码登录 (HTTP API 通常需要先登录)
+            # 使用账号密码登录
             login_url = f"{self.base_url}/login"
             payload = {"account": self.account, "password": self.password}
 
@@ -61,6 +72,9 @@ class IFindHttpDataSource(BaseDataSource):
 
                 if data.get("data") and data["data"].get("access_token"):
                     self.access_token = data["data"]["access_token"]
+                    self.token_expire_time = datetime.now() + timedelta(
+                        seconds=self.TOKEN_EXPIRE_SECONDS
+                    )
                     logger.info("通过账号密码获取 access_token 成功")
                     return self.access_token
 
@@ -70,6 +84,42 @@ class IFindHttpDataSource(BaseDataSource):
         except Exception as e:
             logger.error(f"获取 access_token 失败：{e}")
             return None
+
+    async def _request_with_auth(
+        self, endpoint: str, payload: dict, max_retries: int = 2
+    ) -> Optional[dict]:
+        """带认证的请求方法 - 支持自动重试"""
+        headers = {"Content-Type": "application/json"}
+
+        for attempt in range(max_retries):
+            try:
+                # 确保 Token 有效
+                token = await self._get_access_token()
+                if token:
+                    headers["access_token"] = token
+
+                url = f"{self.base_url}{endpoint}"
+
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(url, headers=headers, json=payload)
+
+                    # Token 过期，重新获取后重试
+                    if response.status_code == 401 and attempt < max_retries - 1:
+                        logger.warning("iFinD Token 过期，重新获取")
+                        self.access_token = None
+                        self.token_expire_time = None
+                        continue
+
+                    response.raise_for_status()
+                    return response.json()
+
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logger.error(f"iFinD 请求失败 {endpoint}: {e}")
+                    return None
+                logger.warning(f"iFinD 请求失败，重试 {attempt + 1}/{max_retries}: {e}")
+
+        return None
 
     def _build_headers(self) -> dict:
         """构建请求头"""
@@ -81,55 +131,43 @@ class IFindHttpDataSource(BaseDataSource):
     async def get_quote(self, code: str) -> Optional[StockQuoteResponse]:
         """获取实时行情 - real_time_quotation 接口"""
         try:
-            # 确保代码格式正确 (添加市场前缀)
             full_code = self._format_code(code)
 
-            token = await self._get_access_token()
-            headers = self._build_headers() if token else {}
-
-            url = f"{self.base_url}/real_time_quotation"
             payload = {
                 "codes": full_code,
-                "indicators": "latest",  # 获取最新行情
+                "indicators": "latest",
             }
 
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
+            data = await self._request_with_auth("/real_time_quotation", payload)
 
-                data = response.json()
-                if not data.get("tables"):
-                    return None
-
-                # 解析返回数据
-                table_data = data["tables"][0]
-                if isinstance(table_data, dict):
-                    row = table_data.get("table", {})
-
-                    pre_close = float(row.get("preClose", 1)) or 1
-                    latest = float(row.get("latest", 0))
-
-                    return StockQuoteResponse(
-                        id=0,
-                        stock_code=code,
-                        price=Decimal(str(latest)),
-                        open_price=Decimal(str(row.get("open", 0))),
-                        high_price=Decimal(str(row.get("high", 0))),
-                        low_price=Decimal(str(row.get("low", 0))),
-                        pre_close=Decimal(str(pre_close)),
-                        change_percent=Decimal(
-                            str(
-                                (latest - pre_close) / pre_close * 100
-                                if pre_close
-                                else 0
-                            )
-                        ),
-                        volume=int(float(row.get("volume", 0) or 0)),
-                        turnover=Decimal(str(row.get("amount", 0) or 0)),
-                        timestamp=datetime.now(),
-                    )
-
+            if not data or not data.get("tables"):
                 return None
+
+            # 解析返回数据
+            table_data = data["tables"][0]
+            if isinstance(table_data, dict):
+                row = table_data.get("table", {})
+
+                pre_close = float(row.get("preClose", 1)) or 1
+                latest = float(row.get("latest", 0))
+
+                return StockQuoteResponse(
+                    id=0,
+                    stock_code=code,
+                    price=Decimal(str(latest)),
+                    open_price=Decimal(str(row.get("open", 0))),
+                    high_price=Decimal(str(row.get("high", 0))),
+                    low_price=Decimal(str(row.get("low", 0))),
+                    pre_close=Decimal(str(pre_close)),
+                    change_percent=Decimal(
+                        str((latest - pre_close) / pre_close * 100 if pre_close else 0)
+                    ),
+                    volume=int(float(row.get("volume", 0) or 0)),
+                    turnover=Decimal(str(row.get("amount", 0) or 0)),
+                    timestamp=datetime.now(),
+                )
+
+            return None
 
         except Exception as e:
             logger.error(f"同花顺获取行情失败 {code}: {e}")
@@ -159,20 +197,14 @@ class IFindHttpDataSource(BaseDataSource):
     ) -> List[KlineData]:
         """获取 K 线数据 - cmd_history_quotation 接口"""
         try:
-            from datetime import timedelta
-
             full_code = self._format_code(code)
 
-            # 计算日期范围（根据 limit 推算，考虑周末和节假日，多算 50%）
+            # 计算日期范围
             end_date = datetime.now().strftime("%Y-%m-%d")
             start_date = (datetime.now() - timedelta(days=int(limit * 1.5))).strftime(
                 "%Y-%m-%d"
             )
 
-            token = await self._get_access_token()
-            headers = self._build_headers() if token else {}
-
-            url = f"{self.base_url}/cmd_history_quotation"
             payload = {
                 "codes": full_code,
                 "indicators": "open,high,low,close,volume,amount",
@@ -181,98 +213,84 @@ class IFindHttpDataSource(BaseDataSource):
                 "functionpara": {"Fill": "Blank"},
             }
 
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
+            data = await self._request_with_auth("/cmd_history_quotation", payload)
 
-                data = response.json()
-                if not data.get("tables"):
-                    return []
+            if not data or not data.get("tables"):
+                return []
 
-                klines = []
-                for table in data["tables"]:
-                    if isinstance(table, dict):
-                        rows = table.get("table", {})
-                        time_str = rows.get("time", "")
+            klines = []
+            for table in data["tables"]:
+                if isinstance(table, dict):
+                    rows = table.get("table", {})
+                    time_str = rows.get("time", "")
 
+                    try:
+                        dt = datetime.strptime(str(time_str), "%Y-%m-%d %H:%M:%S")
+                    except:
                         try:
-                            dt = datetime.strptime(str(time_str), "%Y-%m-%d %H:%M:%S")
+                            dt = datetime.strptime(str(time_str), "%Y-%m-%d")
                         except:
-                            try:
-                                dt = datetime.strptime(str(time_str), "%Y-%m-%d")
-                            except:
-                                continue
+                            continue
 
-                        klines.append(
-                            KlineData(
-                                time=int(dt.timestamp()),
-                                open=Decimal(str(rows.get("open", 0))),
-                                high=Decimal(str(rows.get("high", 0))),
-                                low=Decimal(str(rows.get("low", 0))),
-                                close=Decimal(str(rows.get("close", 0))),
-                                volume=int(float(rows.get("volume", 0) or 0)),
-                            )
+                    klines.append(
+                        KlineData(
+                            time=int(dt.timestamp()),
+                            open=Decimal(str(rows.get("open", 0))),
+                            high=Decimal(str(rows.get("high", 0))),
+                            low=Decimal(str(rows.get("low", 0))),
+                            close=Decimal(str(rows.get("close", 0))),
+                            volume=int(float(rows.get("volume", 0) or 0)),
                         )
+                    )
 
-                return klines[-limit:] if len(klines) > limit else klines
+            return klines[-limit:] if len(klines) > limit else klines
 
         except Exception as e:
             logger.error(f"同花顺获取 K 线失败 {code}: {e}")
             return []
 
     async def search(self, keyword: str) -> List[StockSearchResult]:
-        """搜索股票 - smart_stock_picking (智能选股/WCQuery)"""
+        """搜索股票 - smart_stock_picking"""
         try:
-            token = await self._get_access_token()
-            headers = self._build_headers() if token else {}
-
-            url = f"{self.base_url}/smart_stock_picking"
             payload = {"searchstring": keyword, "searchtype": "stock"}
 
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
+            data = await self._request_with_auth("/smart_stock_picking", payload)
 
-                data = response.json()
-                results = []
+            results = []
 
-                if isinstance(data, list):
-                    for item in data[:30]:
-                        if isinstance(item, dict):
-                            results.append(
-                                StockSearchResult(
-                                    code=item.get("thscode", ""),
-                                    name=item.get("secName", ""),
-                                    price=Decimal(str(item.get("latest", 0)))
-                                    if item.get("latest")
-                                    else None,
-                                    change_percent=Decimal(
-                                        str(item.get("changeRatio", 0))
-                                    )
-                                    if item.get("changeRatio")
-                                    else None,
-                                )
+            if isinstance(data, list):
+                for item in data[:30]:
+                    if isinstance(item, dict):
+                        results.append(
+                            StockSearchResult(
+                                code=item.get("thscode", ""),
+                                name=item.get("secName", ""),
+                                price=Decimal(str(item.get("latest", 0)))
+                                if item.get("latest")
+                                else None,
+                                change_percent=Decimal(str(item.get("changeRatio", 0)))
+                                if item.get("changeRatio")
+                                else None,
                             )
-                elif isinstance(data, dict) and data.get("tables"):
-                    for table in data["tables"]:
-                        if isinstance(table, dict):
-                            row = table.get("table", {})
-                            results.append(
-                                StockSearchResult(
-                                    code=row.get("thscode", ""),
-                                    name=row.get("secName", ""),
-                                    price=Decimal(str(row.get("latest", 0)))
-                                    if row.get("latest")
-                                    else None,
-                                    change_percent=Decimal(
-                                        str(row.get("changeRatio", 0))
-                                    )
-                                    if row.get("changeRatio")
-                                    else None,
-                                )
+                        )
+            elif isinstance(data, dict) and data.get("tables"):
+                for table in data["tables"]:
+                    if isinstance(table, dict):
+                        row = table.get("table", {})
+                        results.append(
+                            StockSearchResult(
+                                code=row.get("thscode", ""),
+                                name=row.get("secName", ""),
+                                price=Decimal(str(row.get("latest", 0)))
+                                if row.get("latest")
+                                else None,
+                                change_percent=Decimal(str(row.get("changeRatio", 0)))
+                                if row.get("changeRatio")
+                                else None,
                             )
+                        )
 
-                return results[:30]
+            return results[:30]
 
         except Exception as e:
             logger.error(f"同花顺搜索失败：{e}")
@@ -283,11 +301,6 @@ class IFindHttpDataSource(BaseDataSource):
     ) -> List[StockSearchResult]:
         """获取股票列表 - data_pool (专题报表)"""
         try:
-            token = await self._get_access_token()
-            headers = self._build_headers() if token else {}
-
-            url = f"{self.base_url}/data_pool"
-
             # 默认获取全部 A 股 (板块 ID: 001005010)
             payload = {
                 "reportname": "p03425",
@@ -296,28 +309,24 @@ class IFindHttpDataSource(BaseDataSource):
                     "blockname": "001005010",  # A 股全部股票
                     "iv_type": "allcontract",
                 },
-                "outputpara": "p03291_f001,p03291_f002,p03291_f003,p03291_f004",  # 日期，代码，名称等
+                "outputpara": "p03291_f001,p03291_f002,p03291_f003,p03291_f004",
             }
 
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
+            data = await self._request_with_auth("/data_pool", payload)
 
-                data = response.json()
-                results = []
+            results = []
 
-                if isinstance(data, dict) and data.get("data"):
-                    for item in data["data"][:limit]:
-                        if isinstance(item, list) and len(item) >= 4:
-                            # p03291_f001=日期，f002=代码，f003=名称，f004=其他
-                            results.append(
-                                StockSearchResult(
-                                    code=str(item[1]),
-                                    name=str(item[2]),
-                                )
+            if isinstance(data, dict) and data.get("data"):
+                for item in data["data"][:limit]:
+                    if isinstance(item, list) and len(item) >= 4:
+                        results.append(
+                            StockSearchResult(
+                                code=str(item[1]),
+                                name=str(item[2]),
                             )
+                        )
 
-                return results
+            return results
 
         except Exception as e:
             logger.error(f"同花顺获取列表失败：{e}")

@@ -12,6 +12,7 @@ from app.models.schemas import (
 )
 from app.services.stock_data import StockDataService
 from app.services.technical_analysis import TechnicalAnalysisService
+from app.services.data_sources.eastmoney import EastMoneyDataSource
 from loguru import logger
 
 router = APIRouter()
@@ -114,4 +115,67 @@ async def get_technical_analysis(code: str, db: AsyncSession = Depends(get_db)):
         return indicators
     except Exception as e:
         logger.error(f"Error calculating technical indicators for {code}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== 高级筛选接口 ====================
+
+
+@router.get("/limit-up", response_model=List[StockSearchResult])
+async def get_limit_up_stocks(limit: int = Query(50, ge=1, le=200)):
+    """获取涨停板列表"""
+    try:
+        eastmoney = EastMoneyDataSource()
+        stocks = await eastmoney.get_limit_up_stocks(limit)
+        return stocks
+    except Exception as e:
+        logger.error(f"Error getting limit-up stocks: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/limit-down", response_model=List[StockSearchResult])
+async def get_limit_down_stocks(limit: int = Query(50, ge=1, le=200)):
+    """获取跌停板列表"""
+    try:
+        eastmoney = EastMoneyDataSource()
+        stocks = await eastmoney.get_limit_down_stocks(limit)
+        return stocks
+    except Exception as e:
+        logger.error(f"Error getting limit-down stocks: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/new-listing", response_model=List[StockSearchResult])
+async def get_new_stocks(limit: int = Query(50, ge=1, le=200)):
+    """获取次新股列表"""
+    try:
+        eastmoney = EastMoneyDataSource()
+        stocks = await eastmoney.get_new_stocks(limit)
+        return stocks
+    except Exception as e:
+        logger.error(f"Error getting new stocks: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/kcb", response_model=List[StockSearchResult])
+async def get_kcb_stocks(limit: int = Query(50, ge=1, le=200)):
+    """获取科创板列表"""
+    try:
+        eastmoney = EastMoneyDataSource()
+        stocks = await eastmoney.get_kcb_stocks(limit)
+        return stocks
+    except Exception as e:
+        logger.error(f"Error getting kcb stocks: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/cyb", response_model=List[StockSearchResult])
+async def get_cyb_stocks(limit: int = Query(50, ge=1, le=200)):
+    """获取创业板列表"""
+    try:
+        eastmoney = EastMoneyDataSource()
+        stocks = await eastmoney.get_cyb_stocks(limit)
+        return stocks
+    except Exception as e:
+        logger.error(f"Error getting cyb stocks: {e}")
         raise HTTPException(status_code=500, detail=str(e))

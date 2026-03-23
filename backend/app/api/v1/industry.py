@@ -49,17 +49,13 @@ async def get_industries(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/industries/{code}", response_model=dict)
-async def get_industry_detail(code: str, db: AsyncSession = Depends(get_db)):
-    """获取行业详情"""
+@router.get("/industries/{code}/stocks", response_model=List[dict])
+async def get_industry_stocks(code: str, db: AsyncSession = Depends(get_db)):
+    """获取板块内股票列表"""
     try:
         industry_ds = IndustryDataSource()
-        industry = await industry_ds.get_industry_detail(code)
-        if not industry:
-            raise HTTPException(status_code=404, detail="行业不存在")
-        return industry
-    except HTTPException:
-        raise
+        stocks = await industry_ds.get_board_stocks(code, 200)
+        return stocks
     except Exception as e:
-        logger.error(f"Error getting industry detail: {e}")
+        logger.error(f"Error getting industry stocks: {e}")
         raise HTTPException(status_code=500, detail=str(e))

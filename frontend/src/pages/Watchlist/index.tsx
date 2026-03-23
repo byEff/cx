@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Table, Button, Popconfirm, message, Statistic, Row, Col } from 'antd'
-import { DeleteOutlined } from '@ant-design/icons'
+import { Card, Table, Button, Popconfirm, message, Row, Col } from 'antd'
+import { DeleteOutlined, ReloadOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons'
 import type { WatchlistItem, StockQuote } from '@/types'
 import { watchlistApi, stockApi } from '@/services/api'
 
@@ -52,7 +52,11 @@ function WatchlistPage() {
       dataIndex: 'stockCode',
       key: 'stockCode',
       width: 100,
-      render: (code: string) => <a onClick={() => navigate(`/stock/${code}`)}>{code}</a>,
+      render: (code: string) => (
+        <a onClick={() => navigate(`/stock/${code}`)} style={{ color: '#58a6ff' }}>
+          {code}
+        </a>
+      ),
     },
     {
       title: '加入价格',
@@ -145,43 +149,43 @@ function WatchlistPage() {
     watchlist.forEach(item => {
       const quote = quotes.get(item.stockCode)
       if (quote && item.addPrice) {
-        total += ((quote.price - item.addPrice) / item.addPrice) * 100
+        total += ((Number(quote.price) - Number(item.addPrice)) / Number(item.addPrice)) * 100
       }
     })
-    return total / watchlist.length || 0
+    return watchlist.length > 0 ? total / watchlist.length : 0
   }
 
   return (
     <div>
-      <Card style={{ marginBottom: 24 }}>
-        <Row gutter={[16, 16]}>
+      <h1 className="page-title">我的自选股</h1>
+
+      <Card style={{ marginBottom: 24 }} className="hover-card">
+        <Row gutter={24}>
           <Col span={8}>
-            <Statistic
-              title="自选股数量"
-              value={watchlist.length}
-              suffix="只"
-            />
+            <div className="stat-card">
+              <div className="stat-label">自选股数量</div>
+              <div className="stat-value">{watchlist.length}</div>
+              <div style={{ fontSize: 12, color: '#8b949e' }}>只</div>
+            </div>
           </Col>
           <Col span={8}>
-            <Statistic
-              title="平均盈亏"
-              value={getTotalProfit()}
-              precision={2}
-              suffix="%"
-              valueStyle={{
-                color: getTotalProfit() > 0 ? '#f5222d' : '#52c41a'
-              }}
-            />
+            <div className="stat-card">
+              <div className="stat-label">平均盈亏</div>
+              <div className="stat-value" style={{ color: getTotalProfit() > 0 ? '#ef4444' : '#22c55e' }}>
+                {getTotalProfit() > 0 ? <RiseOutlined style={{ marginRight: 8 }} /> : <FallOutlined style={{ marginRight: 8 }} />}
+                {getTotalProfit().toFixed(2)}%
+              </div>
+            </div>
           </Col>
           <Col span={8}>
-            <Button type="primary" onClick={loadWatchlist}>
+            <Button type="primary" icon={<ReloadOutlined />} onClick={loadWatchlist} size="large">
               刷新数据
             </Button>
           </Col>
         </Row>
       </Card>
 
-      <Card title="我的自选股">
+      <Card title={`自选股列表 (${watchlist.length})`} className="hover-card">
         <Table
           dataSource={watchlist}
           columns={columns}
@@ -192,6 +196,10 @@ function WatchlistPage() {
             showSizeChanger: true,
             showTotal: (total) => `共 ${total} 条`,
           }}
+          onRow={(record) => ({
+            onClick: () => navigate(`/stock/${record.stockCode}`),
+            style: { cursor: 'pointer' },
+          })}
         />
       </Card>
     </div>

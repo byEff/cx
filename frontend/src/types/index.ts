@@ -3,6 +3,12 @@ export interface Stock {
   name: string
   price?: number
   changePercent?: number
+  volume?: number
+  turnover?: number
+  turnoverRate?: number
+  amplitude?: number
+  peRatio?: number
+  totalMarketValue?: number
   industry?: string
   market?: string
 }
@@ -69,4 +75,89 @@ export interface MarketNews {
   newsTime?: string
   url?: string
   createdAt: string
+}
+
+// Market Sentiment Types
+export interface UpDownDistribution {
+  upCount: number
+  downCount: number
+  flatCount: number
+  limitUp: number
+  limitDown: number
+  upLimitCount?: number
+  downLimitCount?: number
+  timestamp: string
+}
+
+export interface LimitUpStats {
+  totalCount: number
+  sealCount: number
+  openCount: number
+  timeDistribution?: Record<string, number>
+  boardDistribution?: Record<string, number>
+  timestamp: string
+}
+
+// ETF Types
+export interface ETF {
+  code: string
+  name: string
+  price?: number
+  changePercent?: number
+  volume?: number
+  turnover?: number
+  market?: string
+  type?: string
+}
+
+export interface ETFQuote {
+  code: string
+  name: string
+  price: number
+  openPrice?: number
+  highPrice?: number
+  lowPrice?: number
+  preClose?: number
+  changePercent?: number
+  volume?: number
+  turnover?: number
+  timestamp: string
+}
+
+// Portfolio Types
+export interface PortfolioGroup {
+  id: number
+  name: string
+  userId: number
+  createdAt: string
+}
+
+export interface Position {
+  id: number
+  groupId: number
+  stockCode: string
+  stockName?: string
+  costPrice: number
+  quantity: number
+  createdAt: string
+}
+
+export interface ProfitLossItem {
+  positionId: number
+  stockCode: string
+  stockName?: string
+  quantity: number
+  costPrice: number
+  currentPrice?: number
+  marketValue?: number
+  profitLoss?: number
+  profitLossPercent?: number
+}
+
+export interface ProfitLossSummary {
+  totalCost: number
+  totalMarketValue?: number
+  totalProfitLoss?: number
+  totalProfitLossPercent?: number
+  positions: ProfitLossItem[]
 }

@@ -1,58 +1,43 @@
 import { useEffect, useState } from 'react'
-import { Card, Table, Select, Space, Tag, Input, Button } from 'antd'
+import { Card, Table, Select, Space, Input, Button } from 'antd'
 import { RiseOutlined, FallOutlined, ReloadOutlined } from '@ant-design/icons'
-import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
+import type { ColumnsType } from 'antd/es/table'
+import { useNavigate } from 'react-router-dom'
 
 interface Industry {
   code: string
   name: string
-  price: number
-  change_percent: number
+  price: number | string
+  change_percent: number | string
   volume: number
-  turnover: number
-  change_5d: number
-  change_ytd: number
-  change_1m: number
-  stock_count: number
-  lead_stock: string
-}
-
-interface IndustryResponse {
-  data: Industry[]
-  total: number
-  page: number
-  page_size: number
-  total_pages: number
+  turnover: number | string
+  change_5d?: number | string
+  change_ytd?: number | string
+  change_1m?: number | string
+  stock_count?: number | string
+  lead_stock?: string
 }
 
 function IndustryPage() {
+  const navigate = useNavigate()
   const [industries, setIndustries] = useState<Industry[]>([])
   const [loading, setLoading] = useState(false)
   const [sortBy, setSortBy] = useState<string>('change_percent')
   const [order, setOrder] = useState<string>('desc')
   const [searchText, setSearchText] = useState('')
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: 50,
-    total: 0,
-  })
 
   useEffect(() => {
     loadIndustries()
-  }, [pagination.current, pagination.pageSize, sortBy, order])
+  }, [sortBy, order])
 
   const loadIndustries = async () => {
     setLoading(true)
     try {
       const response = await fetch(
-        `http://localhost:8001/api/v1/market/industries?page=${pagination.current}&page_size=${pagination.pageSize}&sort_by=${sortBy}&order=${order}`
+        `/api/v1/market/industries?page=1&page_size=2000&sort_by=${sortBy}&order=${order}`
       )
-      const result: IndustryResponse = await response.json()
-      setIndustries(result.data)
-      setPagination(prev => ({
-        ...prev,
-        total: result.total,
-      }))
+      const result = await response.json()
+      setIndustries(result.data || [])
     } catch (error) {
       console.error('Failed to load industries:', error)
     } finally {
@@ -60,62 +45,58 @@ function IndustryPage() {
     }
   }
 
-  const handleTableChange = (
-    pagination: TablePaginationConfig
-  ) => {
-    setPagination(prev => ({
-      ...prev,
-      current: pagination.current || 1,
-      pageSize: pagination.pageSize || 50,
-    }))
-  }
-
-  const formatNumber = (num: number, decimals: number = 2) => {
+  const formatNumber = (num: number | string, decimals: number = 2) => {
     if (!num) return '-'
-    return num.toLocaleString('zh-CN', {
+    const n = typeof num === 'string' ? parseFloat(num) : num
+    if (isNaN(n)) return '-'
+    return n.toLocaleString('zh-CN', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     })
   }
 
-  const formatLargeNumber = (num: number) => {
+  const formatLargeNumber = (num: number | string) => {
     if (!num) return '-'
-    if (num >= 100000000) {
-      return `${(num / 100000000).toFixed(2)}亿`
+    const n = typeof num === 'string' ? parseFloat(num) : num
+    if (isNaN(n)) return '-'
+    if (n >= 100000000) {
+      return `${(n / 100000000).toFixed(2)}亿`
     }
-    if (num >= 10000) {
-      return `${(num / 10000).toFixed(2)}万`
+    if (n >= 10000) {
+      return `${(n / 10000).toFixed(2)}万`
     }
-    return num.toLocaleString()
+    return n.toLocaleString()
   }
 
   const columns: ColumnsType<Industry> = [
     {
-      title: '行业代码',
+      title: '板块代码',
       dataIndex: 'code',
       key: 'code',
       width: 100,
       fixed: 'left',
-    },
-    {
-      title: '行业名称',
-      dataIndex: 'name',
-      key: 'name',
-      width: 150,
-      fixed: 'left',
-      render: (name: string, record: Industry) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{name}</div>
-          <div style={{ fontSize: 12, color: '#999' }}>龙头：{record.lead_stock}</div>
-        </div>
+      render: (code: string) => (
+        <a onClick={() => navigate(`/industry/${code}`)} style={{ color: '#58a6ff' }}>
+          {code}
+        </a>
       ),
     },
     {
-      title: '当前价',
+      title: '板块名称',
+      dataIndex: 'name',
+      key: 'name',
+      width: 120,
+      fixed: 'left',
+      render: (name: string, record: Industry) => (
+        <a onClick={() => navigate(`/industry/${record.code}`)}>{name}</a>
+      ),
+    },
+    {
+      title: '板块指数',
       dataIndex: 'price',
       key: 'price',
-      width: 100,
-      render: (price: number) => formatNumber(price),
+      width: 110,
+      render: (price: number | string) => formatNumber(price),
     },
     {
       title: '涨跌幅',
@@ -123,100 +104,59 @@ function IndustryPage() {
       key: 'change_percent',
       width: 100,
       sorter: true,
-      sortOrder: sortBy === 'change_percent' ? (order === 'desc' ? 'descend' : 'ascend') : null,
-      render: (change: number) => (
-        <span className={change > 0 ? 'stock-up' : change < 0 ? 'stock-down' : 'stock-flat'}>
-          {change > 0 ? <RiseOutlined /> : change < 0 ? <FallOutlined /> : null}
-          {formatNumber(Math.abs(change))}%
-        </span>
-      ),
+      render: (change: number | string) => {
+        const num = typeof change === 'string' ? parseFloat(change) : change
+        if (isNaN(num) || (!num && num !== 0)) return '-'
+        const color = num >= 0 ? '#ef4444' : '#22c55e'
+        return (
+          <span style={{ color, fontWeight: 500 }}>
+            {num >= 0 ? <RiseOutlined /> : <FallOutlined />} {Math.abs(num).toFixed(2)}%
+          </span>
+        )
+      },
     },
     {
-      title: '5 日涨幅',
-      dataIndex: 'change_5d',
-      key: 'change_5d',
-      width: 100,
-      sorter: true,
-      sortOrder: sortBy === 'change_5d' ? (order === 'desc' ? 'descend' : 'ascend') : null,
-      render: (change: number) => (
-        <span className={change > 0 ? 'stock-up' : change < 0 ? 'stock-down' : 'stock-flat'}>
-          {formatNumber(Math.abs(change))}%
-        </span>
-      ),
-    },
-    {
-      title: '本月涨幅',
-      dataIndex: 'change_1m',
-      key: 'change_1m',
-      width: 100,
-      sorter: true,
-      sortOrder: sortBy === 'change_1m' ? (order === 'desc' ? 'descend' : 'ascend') : null,
-      render: (change: number) => (
-        <span className={change > 0 ? 'stock-up' : change < 0 ? 'stock-down' : 'stock-flat'}>
-          {formatNumber(Math.abs(change))}%
-        </span>
-      ),
-    },
-    {
-      title: '今年涨幅',
-      dataIndex: 'change_ytd',
-      key: 'change_ytd',
-      width: 100,
-      sorter: true,
-      sortOrder: sortBy === 'change_ytd' ? (order === 'desc' ? 'descend' : 'ascend') : null,
-      render: (change: number) => (
-        <span className={change > 0 ? 'stock-up' : change < 0 ? 'stock-down' : 'stock-flat'}>
-          {formatNumber(Math.abs(change))}%
-        </span>
-      ),
-    },
-    {
-      title: '成交量 (手)',
+      title: '成交量',
       dataIndex: 'volume',
       key: 'volume',
       width: 120,
       sorter: true,
-      sortOrder: sortBy === 'volume' ? (order === 'desc' ? 'descend' : 'ascend') : null,
-      render: (volume: number) => formatLargeNumber(volume),
+      render: (volume: number) => {
+        if (!volume) return '-'
+        return formatLargeNumber(volume) + '手'
+      },
     },
     {
-      title: '成交额 (元)',
+      title: '成交额',
       dataIndex: 'turnover',
       key: 'turnover',
       width: 120,
       sorter: true,
-      sortOrder: sortBy === 'turnover' ? (order === 'desc' ? 'descend' : 'ascend') : null,
-      render: (turnover: number) => formatLargeNumber(turnover),
-    },
-    {
-      title: '股票数量',
-      dataIndex: 'stock_count',
-      key: 'stock_count',
-      width: 100,
-      sorter: true,
-      sortOrder: sortBy === 'stock_count' ? (order === 'desc' ? 'descend' : 'ascend') : null,
-      render: (count: number) => (
-        <Tag color="blue">{count}只</Tag>
-      ),
+      render: (turnover: number | string) => formatLargeNumber(turnover) + '元',
     },
   ]
 
+  const filteredIndustries = industries.filter(
+    (item) =>
+      item.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      item.code.toLowerCase().includes(searchText.toLowerCase())
+  )
+
   return (
     <div>
-      <Card style={{ marginBottom: 24 }}>
+      <h1 className="page-title">行业板块</h1>
+
+      <Card style={{ marginBottom: 24 }} className="hover-card">
         <Space style={{ marginBottom: 16, flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 500 }}>排序：</span>
+          <span style={{ fontWeight: 500, color: '#f0f6fc' }}>排序：</span>
           <Select
             value={sortBy}
             onChange={setSortBy}
             style={{ width: 120 }}
             options={[
               { value: 'change_percent', label: '涨跌幅' },
-              { value: 'change_5d', label: '5 日涨幅' },
-              { value: 'change_ytd', label: '今年涨幅' },
               { value: 'turnover', label: '成交额' },
               { value: 'volume', label: '成交量' },
-              { value: 'stock_count', label: '股票数量' },
             ]}
           />
           <Select
@@ -229,45 +169,35 @@ function IndustryPage() {
             ]}
           />
           <Input.Search
-            placeholder="搜索行业名称或代码"
+            placeholder="搜索板块名称或代码"
             style={{ width: 250 }}
             allowClear
             onSearch={setSearchText}
             onChange={(e) => setSearchText(e.target.value)}
           />
-          <Button icon={<ReloadOutlined />} onClick={loadIndustries}>
+          <Button type="primary" icon={<ReloadOutlined />} onClick={loadIndustries}>
             刷新
           </Button>
         </Space>
-        <div style={{ color: '#666', fontSize: 14 }}>
-          共 {pagination.total} 个行业，第 {pagination.current} 页 / 共 {Math.ceil(pagination.total / pagination.pageSize)} 页
+        <div style={{ color: '#8b949e', fontSize: 14 }}>
+          共 {filteredIndustries.length} 个板块
         </div>
       </Card>
 
-      <Card title="行业板块">
+      <Card className="hover-card">
         <Table
           columns={columns}
-          dataSource={industries.filter(
-            (item) =>
-              item.name.toLowerCase().includes(searchText.toLowerCase()) ||
-              item.code.toLowerCase().includes(searchText.toLowerCase()) ||
-              item.lead_stock.toLowerCase().includes(searchText.toLowerCase())
-          )}
+          dataSource={filteredIndustries}
           rowKey="code"
           loading={loading}
-          onChange={handleTableChange}
-          pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            pageSizeOptions: ['20', '50', '100', '200'],
-            showTotal: (total) => `共 ${total} 条`,
-          }}
-          scroll={{ x: 1400, y: 600 }}
+          pagination={false}
+          scroll={{ x: 800, y: 600 }}
           size="middle"
           sticky
+          onRow={(record) => ({
+            onClick: () => navigate(`/industry/${record.code}`),
+            style: { cursor: 'pointer' },
+          })}
         />
       </Card>
     </div>

@@ -6,7 +6,7 @@ import sys
 
 from app.config import settings
 from app.database import init_db
-from app.api.v1 import stocks, watchlist, alerts, market, industry
+from app.api.v1 import stocks, watchlist, alerts, market, industry, etf, portfolio
 
 # Configure logger
 logger.remove()
@@ -72,6 +72,12 @@ app.include_router(
 )
 app.include_router(
     industry.router, prefix=f"{settings.API_PREFIX}/market", tags=["Industry"]
+)
+app.include_router(
+    etf.router, prefix=f"{settings.API_PREFIX}/etf", tags=["ETF"]
+)
+app.include_router(
+    portfolio.router, prefix=f"{settings.API_PREFIX}/portfolio", tags=["Portfolio"]
 )
 
 
